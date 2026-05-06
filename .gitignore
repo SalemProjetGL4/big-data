@@ -1,0 +1,8 @@
+.venv
+.vscode
+__pycache__/
+# ── Python-specific ignores ─────────────────────────────────
+*.pyc
+*.pyo
+*.pyd
+datasets/
