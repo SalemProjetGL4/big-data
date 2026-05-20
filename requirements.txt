@@ -1,0 +1,14 @@
+# Kafka producer
+confluent-kafka==2.3.0
+
+# YouTube, Twitch
+requests==2.31.0
+
+# Spark (match your cluster version)
+pyspark==3.4.1
+
+# PostgreSQL upsert from driver
+psycopg2-binary==2.9.9
+
+# Config / utils
+python-dotenv==1.0.0
