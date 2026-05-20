@@ -24,7 +24,7 @@ PLATFORM_COLORS = {
 PLATFORM_IDS = {"YouTube": 1, "Twitch": 2, "Twitter": 3, "Reddit": 4}
 ID_TO_PLATFORM = {v: k for k, v in PLATFORM_IDS.items()}
 
-DB_CFG = dict(host="localhost", port=5432, dbname="trend_analyzer",
+DB_CFG = dict(host="postgres", port=5432, dbname="trends_db",
               user="postgres", password="password")
 
 

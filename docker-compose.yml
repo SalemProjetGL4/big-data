@@ -10,6 +10,8 @@ services:
       - "5432:5432"
     volumes:
       - ./storage:/docker-entrypoint-initdb.d
+    networks:
+      - bigdata-net
 
   mongodb:
     image: mongo:latest
@@ -18,3 +20,23 @@ services:
       - "27017:27017"
     volumes:
       - ./storage:/docker-entrypoint-initdb.d
+    networks:
+      - bigdata-net
+
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./dashboard:/app
+    depends_on:
+      - postgres
+      - mongodb
+    networks:
+      - bigdata-net
+    restart: unless-stopped
+
+networks:
+  bigdata-net:
+    driver: bridge
