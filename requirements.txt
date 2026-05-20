@@ -1,3 +1,18 @@
+# Kafka producer
+confluent-kafka==2.3.0
+
+# YouTube, Twitch
+requests==2.31.0
+
+# Spark (match your cluster version)
+pyspark==3.4.1
+
+# PostgreSQL upsert from driver
+psycopg2-binary==2.9.9
+
+# Config / utils
+python-dotenv==1.0.0
+
 # data ingestion / download
 kaggle
 requests
@@ -9,9 +24,6 @@ datasets
 # storage
 pymongo>=4.6.0
 psycopg2-binary>=2.9.9
-
-# processing
-pyspark>=3.5.0
 
 # dashboard
 streamlit>=1.35.0

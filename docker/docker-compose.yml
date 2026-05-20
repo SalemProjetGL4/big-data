@@ -1,0 +1,188 @@
+version: "3.9"
+
+x-producer-base: &producer-base
+  build:
+    context: ..
+    dockerfile: producers/Dockerfile
+  image: social-producers:latest
+  restart: unless-stopped
+  depends_on:
+    - kafka
+  env_file:
+    - ../.env
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
+services:
+
+  # ── Zookeeper ──────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+
+  # ── Kafka Broker ───────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"     # external (host)
+      - "29092:29092"   # internal (container-to-container)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 48
+      KAFKA_MESSAGE_MAX_BYTES: 10485760     # 10 MB max message size
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  # ── Kafka UI (optional, handy for development) ─────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  # ── MongoDB ────────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: social_raw
+    volumes:
+      - mongodb_data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "1"]
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline_password
+      POSTGRES_DB: analytics
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../scripts/init_postgres.sql:/docker-entrypoint-initdb.d/01_init.sql
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=16MB"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline -d analytics"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── DB Init (runs schema on every compose up) ────────────────────────────
+  db-init:
+    image: postgres:16-alpine
+    container_name: db-init
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: pipeline_password
+    volumes:
+      - ../scripts/init_postgres.sql:/init.sql:ro
+    command:
+      - sh
+      - -c
+      - "psql -h postgres -U pipeline -d analytics -f /init.sql"
+
+  # ── Producers ─────────────────────────────────────────────────────────────
+  youtube-producer:
+    <<: *producer-base
+    container_name: youtube-producer
+    command: ["python", "-m", "producers.youtube_producer"]
+
+  twitch-producer:
+    <<: *producer-base
+    container_name: twitch-producer
+    command: ["python", "-m", "producers.twitch_producer"]
+
+  twitch-chat-producer:
+    <<: *producer-base
+    container_name: twitch-chat-producer
+    command: ["python", "-m", "producers.twitch_chat_producer"]
+
+  # ── Spark Structured Streaming ──────────────────────────────────────────
+  spark-streaming:
+    build:
+      context: ..
+      dockerfile: spark/Dockerfile
+    image: social-spark:latest
+    container_name: spark-streaming
+    restart: unless-stopped
+    user: root
+    depends_on:
+      - kafka
+      - mongodb
+      - postgres
+      - db-init
+    env_file:
+      - ../.env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGODB_URI: mongodb://root:rootpassword@mongodb:27017
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/analytics
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline_password
+      HOME: /root
+      SPARK_SUBMIT_OPTS: -Divy.home=/root -Divy.cache.dir=/root/.ivy2 -Dspark.jars.ivy=/root/.ivy2
+      HADOOP_USER_NAME: root
+      USER: root
+      LOGNAME: root
+      SPARK_USER: root
+    working_dir: /app
+    command:
+      - spark-submit
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.mongodb.spark:mongo-spark-connector_2.12:10.2.0,org.postgresql:postgresql:42.6.0
+      - spark/streaming_job.py
+
+volumes:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  mongodb_data:
+  postgres_data:
