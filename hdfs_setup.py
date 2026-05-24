@@ -44,7 +44,6 @@ HDFS_DIRS = [
     "/data/twitch/top_games",
     "/data/twitch/top_streamers",
     "/data/twitch/chat",
-    "/data/reddit",
 ]
 
 # local_path (relative) → hdfs_path
@@ -54,8 +53,6 @@ UPLOAD_MAP = [
     (r"datasets\twitch\top_games_2016_2023",     "/data/twitch/top_games"),
     (r"datasets\twitch\top_streamers_2024",      "/data/twitch/top_streamers"),
     (r"datasets\twitch\twitch_chat_2025",        "/data/twitch/chat"),
-    # Reddit: uncomment once you have the dump
-    # (r"datasets\reddit",                       "/data/reddit"),
 ]
 
 # ──────────────────────────────────────────────

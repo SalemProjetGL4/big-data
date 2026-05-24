@@ -1,0 +1,20 @@
+# Additions to requirements.txt for the NLP batch scheduler
+
+# Scheduler
+APScheduler==3.10.4
+
+# Postgres driver for BatchRunTracker
+psycopg2-binary==2.9.9   # already in requirements.txt, listed for reference
+
+# MongoDB Python driver for watermark persistence
+pymongo==4.6.1
+
+# NLP
+nltk==3.8.1
+spacy==3.7.2
+# After install: python -m spacy download en_core_web_sm
+# For best accuracy: python -m spacy download en_core_web_trf
+
+# Transformer backend (optional — only if NLP_SENTIMENT_BACKEND=transformer)
+# transformers==4.38.0
+# torch==2.2.0

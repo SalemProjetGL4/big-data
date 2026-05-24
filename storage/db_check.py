@@ -93,7 +93,6 @@ def check_mongo():
         collections = [
             "twitch_streams",
             "youtube_videos",
-            "reddit_posts",
             "trend_events"
         ]
 

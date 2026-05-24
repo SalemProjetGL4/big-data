@@ -10,14 +10,13 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- fuzzy keyword search
 -- =============================================================
 CREATE TABLE IF NOT EXISTS platforms (
     id          SMALLINT    PRIMARY KEY,
-    name        VARCHAR(20) NOT NULL UNIQUE   -- 'youtube' | 'twitch' | 'twitter' | 'reddit'
+    name        VARCHAR(20) NOT NULL UNIQUE   -- 'youtube' | 'twitch' | 'twitter'
 );
 
 INSERT INTO platforms VALUES
     (1, 'youtube'),
     (2, 'twitch'),
-    (3, 'twitter'),
-    (4, 'reddit')
+    (3, 'twitter')
 ON CONFLICT DO NOTHING;
 
 
@@ -96,7 +95,6 @@ CREATE TABLE IF NOT EXISTS engagement_metrics (
     shares              INTEGER         DEFAULT 0,
 
     -- platform-specific extras (nullable)
-    upvote_ratio        NUMERIC(4,3),               -- Reddit
     peak_viewers        INTEGER,                    -- Twitch
     view_velocity       NUMERIC(12,2),              -- YouTube views/hour since publish
     retweet_count       INTEGER,                    -- Twitter

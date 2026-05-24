@@ -1,0 +1,20 @@
+  # Add this service to docker/docker-compose.yml
+
+  streamlit-dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: streamlit-dashboard
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - mongodb
+    ports:
+      - "8501:8501"
+    environment:
+      POSTGRES_URL:      postgresql://pipeline:pipeline_password@postgres:5432/analytics
+      MONGODB_URI:       mongodb://root:rootpassword@mongodb:27017
+      MONGODB_DATABASE:  social_raw
+      DASHBOARD_USE_DB:  "true"    # set "false" to use simulated data
+    volumes:
+      - ../dashboard:/app/dashboard

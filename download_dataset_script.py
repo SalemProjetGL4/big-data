@@ -1,11 +1,10 @@
 """
 Social Media Trend Analyzer — Dataset Download Script
 ======================================================
-Downloads datasets for all 4 platforms:
-  - Reddit   (Pushshift 2024, via Academic Torrents)
-  - YouTube  (Global Trending 2022–2025, Illinois Data Bank)
-  - Twitter  (Sentiment140 + BlockMesh 2024, Kaggle / HuggingFace)
-  - Twitch   (Chat 2025 + Top Games 2024, HuggingFace / Kaggle)
+Downloads datasets for all 3 platforms:
+    - YouTube  (Global Trending 2022–2025, Illinois Data Bank)
+    - Twitter  (Sentiment140 + BlockMesh 2024, Kaggle / HuggingFace)
+    - Twitch   (Chat 2025 + Top Games 2024, HuggingFace / Kaggle)
 
 Requirements:
     pip install kaggle requests tqdm datasets huggingface_hub
@@ -31,7 +30,6 @@ BASE_DIR = Path("./datasets")
 
 DIRS = {
     "twitter":  BASE_DIR / "twitter",
-    "reddit":   BASE_DIR / "reddit",
     "youtube":  BASE_DIR / "youtube",
     "twitch":   BASE_DIR / "twitch",
 }
@@ -140,60 +138,6 @@ def download_twitter():
     """)
 
 
-def download_reddit():
-    print_header("🟠  REDDIT (Pushshift 2024)")
-
-    dest = DIRS["reddit"]
-
-    print("""
-  Reddit 2024 data is distributed via Academic Torrents (torrent protocol).
-  The full Dec-2024 dump is 51 GB — you only need specific subreddits.
-
-  OPTION A — Torrent client (recommended, most recent):
-  ─────────────────────────────────────────────────────
-  1. Install qBittorrent: https://www.qbittorrent.org/
-  2. Open this magnet link in your browser or torrent client:
-     https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4
-  3. In qBittorrent → right-click → "Download selected content only"
-  4. Select ONLY these subreddits (stays under 10 GB):
-       r_gaming, r_technology, r_worldnews, r_movies, r_science
-  5. Save to: ./datasets/reddit/
-
-  OPTION B — Direct HTTP (older 2023 monthly dump, no torrent needed):
-  ──────────────────────────────────────────────────────────────────────
-  Running HTTP download of RC_2023-01 and RS_2023-01 now...
-    """)
-
-    # Direct HTTP fallback for 2023 monthly dump
-    files = [
-        (
-            "https://files.pushshift.io/reddit/comments/RC_2023-01.zst",
-            dest / "RC_2023-01.zst",
-        ),
-        (
-            "https://files.pushshift.io/reddit/submissions/RS_2023-01.zst",
-            dest / "RS_2023-01.zst",
-        ),
-    ]
-
-    for url, path in files:
-        if not path.exists():
-            http_download(url, path)
-        else:
-            print(f"  ✓ Already exists: {path.name}")
-
-    print("""
-  ℹ️  To parse .zst files in Python:
-       pip install zstandard
-       import zstandard, json
-       with open("RC_2023-01.zst", "rb") as f:
-           dctx = zstandard.ZstdDecompressor()
-           with dctx.stream_reader(f) as reader:
-               for line in reader:
-                   obj = json.loads(line)
-    """)
-
-
 def download_youtube():
     print_header("📺  YOUTUBE (Global Trending 2022–2025)")
 
@@ -281,7 +225,7 @@ def size_report():
 def main():
     print("\n" + "█" * 55)
     print("  Social Media Trend Analyzer — Dataset Downloader")
-    print("  Platforms: Twitter · Reddit · YouTube · Twitch")
+    print("  Platforms: Twitter · YouTube · Twitch")
     print("█" * 55)
 
     print("\nChecking/installing required packages...")
@@ -293,31 +237,27 @@ def main():
   Which datasets do you want to download?
   ────────────────────────────────────────
   1) Twitter only
-  2) Reddit only
-  3) YouTube only
-  4) Twitch only
-  5) ALL platforms
-  6) Show size report only
+    2) YouTube only
+    3) Twitch only
+    4) ALL platforms
+    5) Show size report only
     """)
 
-    choice = input("  Enter choice [1-6]: ").strip()
+        choice = input("  Enter choice [1-5]: ").strip()
 
     start = time.time()
 
     if choice == "1":
         download_twitter()
     elif choice == "2":
-        download_reddit()
-    elif choice == "3":
         download_youtube()
+    elif choice == "3":
+        download_twitch()
     elif choice == "4":
+        download_twitter()
+        download_youtube()
         download_twitch()
     elif choice == "5":
-        download_twitter()
-        download_reddit()
-        download_youtube()
-        download_twitch()
-    elif choice == "6":
         pass
     else:
         print("  Invalid choice. Exiting.")

@@ -144,3 +144,93 @@ CREATE OR REPLACE VIEW top_content_24h AS
       AND is_live = TRUE
 
     ORDER BY reach DESC NULLS LAST;
+
+
+-- ── NLP analytics ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS nlp_batch_runs (
+    id               BIGSERIAL   PRIMARY KEY,
+    run_id           TEXT        NOT NULL,
+    source           TEXT        NOT NULL,
+    status           TEXT        NOT NULL,   -- running | success | failed
+    started_at       TIMESTAMPTZ NOT NULL,
+    finished_at      TIMESTAMPTZ,
+    rows_processed   BIGINT      DEFAULT 0,
+    elapsed_sec      DOUBLE PRECISION,
+    watermark_from   TEXT,
+    watermark_to     TEXT,
+    error_message    TEXT,
+    extra            JSONB,
+    UNIQUE (run_id, source)
+);
+CREATE INDEX IF NOT EXISTS idx_nbr_run_id    ON nlp_batch_runs (run_id);
+CREATE INDEX IF NOT EXISTS idx_nbr_source    ON nlp_batch_runs (source);
+CREATE INDEX IF NOT EXISTS idx_nbr_started   ON nlp_batch_runs (started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_nbr_status    ON nlp_batch_runs (status);
+
+-- Sentiment trends (per minute, per source)
+CREATE TABLE IF NOT EXISTS sentiment_trends (
+    id            BIGSERIAL   PRIMARY KEY,
+    minute        TIMESTAMPTZ NOT NULL,
+    source        TEXT        NOT NULL,   -- youtube | twitch
+    sentiment     TEXT        NOT NULL,   -- positive | negative | neutral
+    event_count   BIGINT      DEFAULT 0,
+    avg_compound  DOUBLE PRECISION DEFAULT 0.0,
+    batch_id      INTEGER,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_st_minute  ON sentiment_trends (minute DESC);
+CREATE INDEX IF NOT EXISTS idx_st_source  ON sentiment_trends (source);
+CREATE INDEX IF NOT EXISTS idx_st_sent    ON sentiment_trends (sentiment);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_st_unique
+    ON sentiment_trends (minute, source, sentiment);
+
+-- Subject/topic trends (per minute, per source)
+CREATE TABLE IF NOT EXISTS subject_trends (
+    id             BIGSERIAL   PRIMARY KEY,
+    minute         TIMESTAMPTZ NOT NULL,
+    source         TEXT        NOT NULL,
+    subject        TEXT        NOT NULL,
+    mention_count  BIGINT      DEFAULT 0,
+    avg_sentiment  DOUBLE PRECISION DEFAULT 0.0,
+    created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sut_minute  ON subject_trends (minute DESC);
+CREATE INDEX IF NOT EXISTS idx_sut_source  ON subject_trends (source);
+CREATE INDEX IF NOT EXISTS idx_sut_subject ON subject_trends (subject);
+CREATE INDEX IF NOT EXISTS idx_sut_count   ON subject_trends (mention_count DESC);
+
+-- Materialised view: top subjects last 1 hour
+CREATE MATERIALIZED VIEW IF NOT EXISTS top_subjects_1h AS
+SELECT
+    source,
+    subject,
+    SUM(mention_count)              AS total_mentions,
+    AVG(avg_sentiment)              AS avg_sentiment,
+    COUNT(DISTINCT minute)          AS active_minutes
+FROM subject_trends
+WHERE minute > NOW() - INTERVAL '1 hour'
+GROUP BY source, subject
+ORDER BY total_mentions DESC;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_top_subjects_1h
+    ON top_subjects_1h (source, subject);
+
+-- Refresh this view every minute via pg_cron or from the app:
+-- SELECT cron.schedule('refresh-top-subjects', '* * * * *',
+--   'REFRESH MATERIALIZED VIEW CONCURRENTLY top_subjects_1h');
+
+-- Materialised view: sentiment summary last 24 hours
+CREATE MATERIALIZED VIEW IF NOT EXISTS sentiment_summary_24h AS
+SELECT
+    source,
+    sentiment,
+    SUM(event_count)       AS total_events,
+    AVG(avg_compound)      AS avg_compound,
+    DATE_TRUNC('hour', minute) AS hour
+FROM sentiment_trends
+WHERE minute > NOW() - INTERVAL '24 hours'
+GROUP BY source, sentiment, DATE_TRUNC('hour', minute)
+ORDER BY hour DESC;

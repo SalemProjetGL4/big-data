@@ -1,6 +1,6 @@
 # Social Media Data Pipeline
 
-Real-time data pipeline ingesting from YouTube, YouTube Comments, Twitch, and Twitch Chat → Kafka → Spark Streaming → MongoDB + PostgreSQL.
+Real-time data pipeline ingesting from YouTube, YouTube Comments, Twitch, and Twitch Chat → Kafka → Spark Streaming → MongoDB + PostgreSQL, with an optional NLP batch job that enriches MongoDB raw docs and writes trend analytics to Postgres.
 
 ## Architecture
 
@@ -10,42 +10,50 @@ YouTube Comments ─┤
 Twitch API  ─┼─► Kafka Topics ─► Spark Structured Streaming ─┬─► MongoDB     (raw payloads)
 Twitch Chat ─┤
                                                      └─► PostgreSQL  (analytics)
+
+MongoDB (raw) ─► NLP Batch Scheduler ─► MongoDB (enriched) + PostgreSQL (trends)
 ```
 
 ## Project Structure
 
 ```
-social-pipeline/
-├── producers/
-│   ├── base_producer.py       # Shared Kafka producer logic
-│   ├── youtube_producer.py    # YouTube Data API v3 ingestion
-│   ├── twitch_producer.py     # Twitch Helix API ingestion
-│   ├── twitch_chat_producer.py# Twitch IRC chat ingestion
-│
-├── spark/
-│   ├── streaming_job.py       # Main Spark Structured Streaming job
-│   ├── transformers.py        # Per-source data normalization
-│   └── writers.py             # MongoDB + PostgreSQL sink logic
-├── schemas/
-│   ├── youtube.py             # Spark schema for YouTube events
-│   ├── twitch.py              # Spark schema for Twitch events
-│
+.
 ├── config/
 │   └── settings.py            # Centralized config via env vars
 ├── docker/
-│   └── docker-compose.yml     # Kafka, Zookeeper, MongoDB, PostgreSQL
+│   ├── docker-compose.yml     # Full stack (Kafka, DBs, producers, Spark, NLP)
+│   └── Dockerfile.nlp         # NLP batch scheduler image
+├── nlp/
+│   ├── emote_cleaner.py
+│   ├── sentiment.py
+│   └── subject_extractor.py
+├── producers/
+│   ├── base_producer.py
+│   ├── youtube_producer.py
+│   ├── twitch_producer.py
+│   └── twitch_chat_producer.py
+├── spark/
+│   ├── streaming_job.py       # Main Spark Structured Streaming job
+│   ├── transformers.py        # Per-source data normalization
+│   ├── writers.py             # MongoDB + PostgreSQL sink logic
+│   ├── nlp_batch_scheduler.py # NLP batch processor
+│   ├── nlp_enrichment_job.py  # Optional streaming NLP job
+│   └── batch_tracker.py       # NLP batch run tracking
+├── schemas/
+│   └── schemas.py             # Spark schemas
 ├── scripts/
-│   ├── init_postgres.sql      # Analytics table definitions
+│   ├── init_postgres.sql      # Analytics + NLP tables
 │   └── create_kafka_topics.sh # Topic creation script
-└── requirements.txt
+├── requirements.txt
+└── requirements_batch.txt
 ```
 
 ## Quick Start
 
-### 1. Start infrastructure
+### 1. Start infrastructure (and pipeline services)
 ```bash
 cd docker
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 2. Create Kafka topics
@@ -64,13 +72,19 @@ cp .env.example .env
 # Fill in your API keys
 ```
 
-### 5. Start producers
+### 4b. Optional: NLP dependencies for local runs
+```bash
+pip install -r requirements.txt -r requirements_batch.txt
+python -m spacy download en_core_web_sm
+```
+
+### 5. Optional: run locally instead of Docker
 ```bash
 python producers/youtube_producer.py &
 python producers/twitch_producer.py &
 ```
 
-### 6. Submit Spark job
+### 6. Optional: submit Spark job manually
 ```bash
 spark-submit \
   --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,\
@@ -102,3 +116,10 @@ org.postgresql:postgresql:42.6.0 \
 | `POSTGRES_URL` | JDBC URL |
 | `POSTGRES_USER` | DB user |
 | `POSTGRES_PASSWORD` | DB password |
+| `NLP_SCHEDULE_MODE` | `interval`, `cron`, or `manual` |
+| `NLP_INTERVAL_MINUTES` | Interval in minutes when schedule mode is `interval` |
+| `NLP_CRON_EXPR` | Cron expression when schedule mode is `cron` |
+| `NLP_BATCH_SIZE` | Max rows per source per NLP batch |
+| `NLP_SENTIMENT_BACKEND` | `vader` or `transformer` |
+| `NLP_SPACY_MODEL` | spaCy model (e.g. `en_core_web_sm`) |
+| `NLP_MAX_TEXT_LEN` | Max text length passed to NLP | 

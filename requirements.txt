@@ -2,7 +2,7 @@
 confluent-kafka==2.3.0
 
 # YouTube, Twitch
-requests==2.31.0
+requests==2.32.3
 
 # Spark (match your cluster version)
 pyspark==3.4.1
@@ -15,19 +15,30 @@ python-dotenv==1.0.0
 
 # data ingestion / download
 kaggle
-requests
 tqdm
 huggingface_hub
 zstandard
 datasets
+fsspec<=2024.9.0
 
 # storage
 pymongo>=4.6.0
-psycopg2-binary>=2.9.9
 
 # dashboard
+packaging<25
 streamlit>=1.35.0
 plotly>=5.20.0
 pandas>=2.0.0
 wordcloud>=1.9.3
-matplotlib>=3.8.0
+matplotlib>=3.7.5,<3.8
+
+# NLP batch scheduler
+APScheduler==3.10.4
+nltk==3.8.1
+spacy==3.7.2
+# After install: python -m spacy download en_core_web_sm
+# For best accuracy: python -m spacy download en_core_web_trf
+
+# Transformer backend (optional — only if NLP_SENTIMENT_BACKEND=transformer)
+# transformers==4.38.0
+# torch==2.2.0

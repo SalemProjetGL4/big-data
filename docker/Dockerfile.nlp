@@ -1,0 +1,23 @@
+FROM python:3.11-slim-bookworm
+
+# Java is required for PySpark
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-17-jre-headless \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PYSPARK_PYTHON=python3
+
+WORKDIR /app
+COPY requirements.txt requirements_batch.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements_batch.txt
+
+# Download spaCy model at build time (bakes it into the image)
+# Install a pinned model release directly to avoid spacy's automatic resolver
+RUN python -m pip install --no-cache-dir \
+    https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0.tar.gz
+
+COPY . .
+
+CMD ["python", "spark/nlp_batch_scheduler.py"]

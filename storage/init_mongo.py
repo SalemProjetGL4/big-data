@@ -45,16 +45,6 @@ def init_youtube(db):
     col.create_index([("title", TEXT), ("description", TEXT)],  name="idx_text_search")
     print("     Indexes ready: youtube_videos")
 
-def init_reddit(db):
-    create_collection(db, "reddit_posts")
-    col = db["reddit_posts"]
-    col.create_index([("post_id",    ASCENDING)],  unique=True, name="idx_post_id")
-    col.create_index([("fetched_at", DESCENDING)],              name="idx_fetched_at")
-    col.create_index([("subreddit",  ASCENDING)],               name="idx_subreddit")
-    col.create_index([("score",      DESCENDING)],              name="idx_score")
-    col.create_index([("title", TEXT), ("selftext", TEXT)],     name="idx_text_search")
-    print("     Indexes ready: reddit_posts")
-
 def init_trend_events(db):
     create_collection(db, "trend_events")
     col = db["trend_events"]
@@ -96,21 +86,6 @@ SAMPLE_YOUTUBE = {
     "sentiment":     {"compound": 0.6, "pos": 0.5, "neg": 0.05, "neu": 0.45}
 }
 
-SAMPLE_REDDIT = {
-    "post_id":       "abc123",
-    "title":         "Post title here",
-    "selftext":      "Post body...",
-    "subreddit":     "gaming",
-    "author":        "username",
-    "score":         4200,
-    "upvote_ratio":  0.97,
-    "num_comments":  312,
-    "flair":         "News",
-    "created_utc":   1735689600,
-    "fetched_at":    "2025-01-01T12:00:00Z",
-    "sentiment":     {"compound": 0.3, "pos": 0.2, "neg": 0.1, "neu": 0.7}
-}
-
 SAMPLE_TREND_EVENT = {
     "keyword":      "Minecraft",
     "platform":     "twitch",
@@ -140,7 +115,6 @@ def main():
 
     init_twitch(db)
     init_youtube(db)
-    init_reddit(db)
     init_trend_events(db)
 
     print("\n✅  All collections and indexes created successfully!")

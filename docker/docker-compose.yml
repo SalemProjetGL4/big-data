@@ -180,9 +180,73 @@ services:
       - org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,org.mongodb.spark:mongo-spark-connector_2.12:10.2.0,org.postgresql:postgresql:42.6.0
       - spark/streaming_job.py
 
+  streamlit-dashboard:
+      build:
+        context: ..
+        dockerfile: docker/Dockerfile.dashboard
+      container_name: streamlit-dashboard
+      restart: unless-stopped
+      depends_on:
+        - postgres
+        - mongodb
+      ports:
+        - "8501:8501"
+      environment:
+        POSTGRES_URL:      postgresql://pipeline:pipeline_password@postgres:5432/analytics
+        MONGODB_URI:       mongodb://root:rootpassword@mongodb:27017
+        MONGODB_DATABASE:  social_raw
+        DASHBOARD_USE_DB:  "true"    # set "false" to use simulated data
+      volumes:
+        - ../dashboard:/app/dashboard
+  # ── NLP Batch Scheduler ──────────────────────────────────────────────────
+  nlp-batch-scheduler:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nlp
+    container_name: nlp-batch-scheduler
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - mongodb
+      - postgres
+    env_file:
+      - ../.env
+    environment:
+      # ── Schedule ───────────────────────────────────────────────────────
+      NLP_SCHEDULE_MODE: interval        # interval | cron | manual
+      NLP_INTERVAL_MINUTES: "15"
+      # NLP_SCHEDULE_MODE: cron
+      # NLP_CRON_EXPR: "0 * * * *"       # every hour at :00
+
+      # ── Batch config ─────────────────────────────────────────────────────
+      NLP_BATCH_SIZE: "50000"
+      NLP_SENTIMENT_BACKEND: vader       # vader | transformer
+      NLP_SPACY_MODEL: en_core_web_sm
+
+      # ── Infrastructure ───────────────────────────────────────────────────
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGODB_URI: mongodb://root:rootpassword@mongodb:27017
+      MONGODB_DATABASE: social_raw
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/analytics
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline_password
+
+      # ── Spark ────────────────────────────────────────────────────────────
+      SPARK_EXECUTOR_MEMORY: 4g
+      SPARK_DRIVER_MEMORY: 2g
+      SPARK_CHECKPOINT_DIR: /tmp/spark-checkpoints/nlp-batch
+      PYSPARK_SUBMIT_ARGS: --packages org.mongodb.spark:mongo-spark-connector_2.12:10.2.0,org.postgresql:postgresql:42.6.0 pyspark-shell
+
+    volumes:
+      - spark_checkpoints:/tmp/spark-checkpoints
+      - nlp_models:/root/.cache
+
 volumes:
   zookeeper_data:
   zookeeper_log:
   kafka_data:
   mongodb_data:
   postgres_data:
+  spark_checkpoints:
+  nlp_models:
+
